@@ -121,8 +121,7 @@ mod tests {
             super::stdio::APPLICATION_STARTUP_CONTRACTS,
             super::process::APPLICATION_STARTUP_CONTRACTS,
         );
-        assert_unique_contracts(super::console::INPUT_STARTUP_CONTRACTS, &[]);
-        assert_unique_contracts(super::console::OUTPUT_STARTUP_CONTRACTS, &[]);
+        assert_unique_contracts(super::console::STARTUP_CONTRACTS, &[]);
         assert_unique_contracts(super::session::STARTUP_CONTRACTS, &[]);
         assert_unique_contracts(
             super::stdio::STARTUP_CONTRACTS,

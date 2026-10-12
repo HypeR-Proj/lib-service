@@ -1,65 +1,34 @@
 // SPDX-FileCopyrightText: 2026 roolrz
 // SPDX-License-Identifier: Apache-2.0
 
-//! Startup contract for the virtual console manager.
-
-use hyper_os::handle::{ByteChannelObject, Rights};
-use hyper_os::startup::StartupPurpose;
+//! Formal session supervision. Bootstrap does not start this service.
 
 use crate::StartupContract;
+use hyper_os::handle::CapabilityChannelObject;
+use hyper_os::startup::StartupPurpose;
 
-pub const STARTUP_DECISION_NAME: &str = "session.startup-decision";
-
-/// Explicit one-shot selection by the current supervisor. Only bootstrap
-/// selects Recovery; after ownership transfer formal init selects System.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ShellMode {
-    System,
-    Recovery,
-}
-
-impl ShellMode {
-    pub const fn encode(self) -> u8 {
-        match self {
-            Self::System => 1,
-            Self::Recovery => 2,
-        }
-    }
-    pub const fn decode(value: u8) -> Option<Self> {
-        match value {
-            1 => Some(Self::System),
-            2 => Some(Self::Recovery),
-            _ => None,
-        }
-    }
-}
-
-pub const STARTUP_DECISION: StartupPurpose<ByteChannelObject> = StartupPurpose::new(0x8002_0003);
-pub const STARTUP_DECISION_CONTRACT: StartupContract = StartupContract::exact(
-    STARTUP_DECISION_NAME,
-    STARTUP_DECISION,
-    Rights::WAIT.union(Rights::READ),
-);
-
-pub const CONSOLE_INPUT_NAME: &str = "session.console-input";
-pub const CONSOLE_OUTPUT_NAME: &str = "session.console-output";
-
-pub const CONSOLE_INPUT: StartupPurpose<ByteChannelObject> = StartupPurpose::new(0x8002_0001);
-pub const CONSOLE_OUTPUT: StartupPurpose<ByteChannelObject> = StartupPurpose::new(0x8002_0002);
-
-pub const CONSOLE_INPUT_CONTRACT: StartupContract = StartupContract::exact(
-    CONSOLE_INPUT_NAME,
-    CONSOLE_INPUT,
-    Rights::WAIT.union(Rights::READ),
-);
-pub const CONSOLE_OUTPUT_CONTRACT: StartupContract = StartupContract::exact(
-    CONSOLE_OUTPUT_NAME,
-    CONSOLE_OUTPUT,
-    Rights::WAIT.union(Rights::WRITE),
+pub const CONSOLE_CONTROLLER: StartupPurpose<CapabilityChannelObject> =
+    StartupPurpose::new(0x8002_0001);
+pub const LOG_CONNECTOR: StartupPurpose<CapabilityChannelObject> = StartupPurpose::new(0x8002_0002);
+pub const TASK_FACTORY_CONTRACT: StartupContract = StartupContract::exact(
+    crate::process::TASK_FACTORY_NAME,
+    hyper_os::startup::TASK_FACTORY,
+    hyper_os::Rights::CREATE_PROCESS
+        .union(hyper_os::Rights::CREATE_TASK_GROUP)
+        .union(hyper_os::Rights::DUPLICATE)
+        .union(hyper_os::Rights::TRANSFER),
 );
 pub const STARTUP_CONTRACTS: &[StartupContract] = &[
-    STARTUP_DECISION_CONTRACT,
-    CONSOLE_INPUT_CONTRACT,
-    CONSOLE_OUTPUT_CONTRACT,
+    StartupContract::exact(
+        "session.console-controller",
+        CONSOLE_CONTROLLER,
+        crate::console::CONNECTOR_RIGHTS,
+    ),
+    StartupContract::exact(
+        "session.log-connector",
+        LOG_CONNECTOR,
+        crate::console::CONNECTOR_RIGHTS,
+    ),
+    TASK_FACTORY_CONTRACT,
     crate::vm::DELEGATED_CLIENT_CONNECTION_CONTRACT,
 ];
