@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 roolrz
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+workspace = "../../app"
+name = "hyper-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Typed service contracts for HypeR Native system applications"
+
+[dependencies]
+hyper-block.workspace = true
+hyper-os.workspace = true
+
+[lints]
+workspace = true
