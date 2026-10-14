@@ -31,7 +31,7 @@ pub const WORKER_CONTROL: StartupPurpose<CapabilityChannelObject> =
 pub const CONTROL_SERVER_CONTRACT: StartupContract = StartupContract::exact(
     "filesystem.control-server",
     CONTROL_SERVER,
-    Rights::WAIT.union(Rights::READ),
+    Rights::WAIT.union(Rights::READ).union(Rights::TRANSFER),
 );
 pub const CONTROL_CLIENT_CONTRACT: StartupContract = StartupContract::exact(
     "filesystem.control-client",
@@ -64,6 +64,21 @@ pub const FAILURE_MESSAGE: &[u8] = b"HYPER-FS-FAILED/1\n";
 pub const WORKER_READY: &[u8] = b"HFSWRK01";
 pub const WORKER_RETURN: &[u8] = b"HFSRET01";
 pub const WORKER_STOP: &[u8] = b"HFSSTOP1";
+/// Private manager-to-worker admission fence. Unlike STOP, the live mount stays.
+pub const WORKER_HANDOFF: &[u8] = b"HFSMOVE1";
+pub const WORKER_WAITING: &[u8] = b"HFSWAIT1";
+pub const WORKER_RESUMED: &[u8] = b"HFSRUN01";
+pub const WORKER_STATE: &[u8] = b"HFSSTATE";
+pub const TRANSPORT_RIGHTS: Rights = Rights::READ
+    .union(Rights::WRITE)
+    .union(Rights::WAIT)
+    .union(Rights::TRANSFER);
+pub const BUFFER_RIGHTS: Rights = Rights::READ
+    .union(Rights::WRITE)
+    .union(Rights::MAP)
+    .union(Rights::TRANSFER);
+/// The active worker may duplicate its mapped VMO for a later drained handoff.
+pub const SERVER_BUFFER_RIGHTS: Rights = BUFFER_RIGHTS.union(Rights::DUPLICATE);
 pub const CONTROL_CONNECT: &[u8] = b"HFSMNT01";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

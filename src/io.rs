@@ -47,7 +47,7 @@ pub const SESSION: startup::StartupPurpose<hyper_os::handle::CapabilityChannelOb
 pub const BROKER_SERVER_CONTRACT: StartupContract = StartupContract::exact(
     "io.broker-server",
     BROKER_SERVER,
-    Rights::WAIT.union(Rights::READ),
+    Rights::WAIT.union(Rights::READ).union(Rights::TRANSFER),
 );
 pub const BROKER_CLIENT_CONTRACT: StartupContract = StartupContract::exact(
     "io.broker-client",
@@ -60,6 +60,20 @@ pub const SESSION_CONTRACT: StartupContract =
 
 /// Capability rendezvous records have exact lengths and no native-layout fields.
 pub const MEMORY_BYTES: usize = 24;
+/// Guest-visible virtual PCI resources, independent of physical PCI assignment.
+pub const PCI_ECAM: u64 = 0x0a80_0000;
+pub const PCI_ECAM_BYTES: u64 = 0x10_0000;
+pub const PCI_MEMORY: u64 = 0x0a00_0000;
+pub const PCI_MEMORY_BYTES: u64 = 0x10_0000;
+pub const PCI_ECAM_ID: u64 = 1 << 62;
+pub const PCI_MEMORY_ID: u64 = 1 << 61;
+pub const PCI_MEMORY_MESSAGE: &[u8; 8] = b"HIOMEMPC";
+
+pub fn encode_pci_memory(base: u64, length: u64) -> Option<[u8; MEMORY_BYTES]> {
+    let mut bytes = encode_memory(base, length)?;
+    bytes[..8].copy_from_slice(PCI_MEMORY_MESSAGE);
+    Some(bytes)
+}
 pub const FRONTEND_MMIO: u64 = 0x0a00_0000;
 pub const FRONTEND_IRQ: u32 = 48;
 /// Client zero belongs to Native services. Its network route remains dormant
@@ -86,7 +100,9 @@ pub fn encode_memory(base: u64, length: u64) -> Option<[u8; MEMORY_BYTES]> {
     Some(bytes)
 }
 pub fn decode_memory(bytes: &[u8]) -> Option<(u64, u64)> {
-    if bytes.len() != MEMORY_BYTES || &bytes[..8] != b"HIOMEM01" {
+    if bytes.len() != MEMORY_BYTES
+        || (&bytes[..8] != b"HIOMEM01" && &bytes[..8] != PCI_MEMORY_MESSAGE)
+    {
         return None;
     }
     let base = u64::from_le_bytes(bytes[8..16].try_into().ok()?);

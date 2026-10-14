@@ -5,7 +5,7 @@
 
 extern crate alloc;
 
-pub const SYSTEM_FSTAB: &str = "/system/etc/fstab";
+pub const SYSTEM_FSTAB: &str = "/etc/fstab";
 
 pub const MAX_BYTES: usize = 8192;
 #[derive(Debug, Eq, PartialEq)]
@@ -120,9 +120,9 @@ mod tests {
     #[test]
     fn caller_selects_the_mount_table() {
         assert_eq!(
-            decode(b"all\0/system/etc/fstab\0"),
+            decode(b"all\0/etc/fstab\0"),
             Some(Request::All {
-                table: "/system/etc/fstab"
+                table: "/etc/fstab"
             })
         );
         assert_eq!(

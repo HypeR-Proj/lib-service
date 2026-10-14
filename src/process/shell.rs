@@ -14,8 +14,8 @@ use hyper_os::task::ProcessBuilder;
 /// The caller first selects the trusted shell image, then delegates its usual
 /// root, task construction and stdio capabilities independently. Ordinary
 /// commands must not receive this inventory. The loader and library directory
-/// describe the caller's retained image environment. Bootstrap recovery and
-/// formal shells retain separate loader and library capabilities.
+/// describe the formal system image environment. The dynamic loader handles
+/// both static and dynamic children without retaining a bootstrap loader.
 pub struct ShellDelegation<'a> {
     pub environment: HandleRef<'a, DirectoryObject>,
     pub loader: HandleRef<'a, FileObject>,
