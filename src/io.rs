@@ -8,6 +8,7 @@ use hyper_os::{handle::Rights, startup};
 
 mod binding;
 mod connection;
+pub mod metrics;
 
 pub use binding::{BOUND_BYTES, BOUND_MESSAGE, Binding, NETWORK_DEVICE_ID_BIT};
 pub use connection::{
@@ -142,8 +143,8 @@ pub fn send_capabilities(
 }
 
 /// Read-only broker observation; no VM/control capability crosses this exchange.
-pub const OBSERVE_MESSAGE: &[u8] = b"HIOSTAT3";
-pub const OBSERVATION_BYTES: usize = 584;
+pub const OBSERVE_MESSAGE: &[u8] = b"HIOSTAT4";
+pub const OBSERVATION_BYTES: usize = 584 + metrics::WIRE_BYTES;
 /// Identity admission can wait behind synchronous guest-mapping retirement.
 /// Best-effort status callers may use a shorter deadline on their reply channel.
 pub const OBSERVATION_TIMEOUT_SECONDS: u64 = 5;
@@ -158,9 +159,15 @@ pub fn encode_observation(
     info: hyper_os::vm::VirtualMachineInfo,
     ram_bytes: u64,
     boot_host_cpu: Option<u32>,
+    metrics: metrics::GuestMetrics,
 ) -> Option<[u8; OBSERVATION_BYTES]> {
     use hyper_os::vm::VirtualMachinePhase;
-    if !valid_observed_name(name) || !valid_observed_image(image) {
+    if !valid_observed_name(name)
+        || !valid_observed_image(image)
+        || metrics
+            .memory
+            .is_some_and(|memory| memory.total_bytes > ram_bytes)
+    {
         return None;
     }
     let mut bytes = [0; OBSERVATION_BYTES];
@@ -179,6 +186,7 @@ pub fn encode_observation(
     bytes[38..40].copy_from_slice(&(image.len() as u16).to_le_bytes());
     bytes[40..40 + name.len()].copy_from_slice(name.as_bytes());
     bytes[72..72 + image.len()].copy_from_slice(image.as_bytes());
+    bytes[584..].copy_from_slice(&metrics.encode()?);
     Some(bytes)
 }
 
@@ -193,6 +201,7 @@ pub struct Observation<'a> {
     pub resident_bytes: Option<u64>,
     /// Current assignment of the I/O VM's boot vCPU (vCPU 0).
     pub boot_host_cpu: Option<u32>,
+    pub metrics: metrics::GuestMetrics,
 }
 
 pub fn decode_observation(bytes: &[u8]) -> Option<Observation<'_>> {
@@ -206,7 +215,7 @@ pub fn decode_observation(bytes: &[u8]) -> Option<Observation<'_>> {
     }
     let name = padded_text(&bytes[40..72], usize::from(bytes[36]))?;
     let image_length = usize::from(u16::from_le_bytes(bytes[38..40].try_into().ok()?));
-    let image = padded_text(&bytes[72..], image_length)?;
+    let image = padded_text(&bytes[72..584], image_length)?;
     if !valid_observed_name(name) || !valid_observed_image(image) {
         return None;
     }
@@ -217,12 +226,20 @@ pub fn decode_observation(bytes: &[u8]) -> Option<Observation<'_>> {
         3 => VirtualMachinePhase::Stopped,
         _ => return None,
     };
+    let ram_bytes = u64::from_le_bytes(bytes[16..24].try_into().ok()?);
+    let metrics = metrics::GuestMetrics::decode(&bytes[584..])?;
+    if metrics
+        .memory
+        .is_some_and(|memory| memory.total_bytes > ram_bytes)
+    {
+        return None;
+    }
     Some(Observation {
         name,
         image,
         phase,
         vcpus: u32::from_le_bytes(bytes[12..16].try_into().ok()?),
-        ram_bytes: u64::from_le_bytes(bytes[16..24].try_into().ok()?),
+        ram_bytes,
         resident_bytes: match u64::from_le_bytes(bytes[24..32].try_into().ok()?) {
             u64::MAX => None,
             bytes => Some(bytes),
@@ -231,6 +248,7 @@ pub fn decode_observation(bytes: &[u8]) -> Option<Observation<'_>> {
             u32::MAX => None,
             cpu => Some(cpu),
         },
+        metrics,
     })
 }
 

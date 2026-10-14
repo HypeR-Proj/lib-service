@@ -2,7 +2,72 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use hyper_os::vm::{Architecture, PlatformProfile, VirtualMachineInfo, VirtualMachinePhase};
+use hyper_service::io::metrics::{AgentState, CpuUsage, GuestMetrics, MemoryUsage};
 use hyper_service::io::{decode_observation, encode_observation};
+
+#[test]
+fn guest_usage_wire_rejects_inconsistent_or_out_of_range_samples() {
+    let sample = GuestMetrics {
+        state: AgentState::Ready,
+        sample_age_ms: Some(17),
+        cpu: Some(CpuUsage {
+            busy_basis_points: 1250,
+            iowait_basis_points: 250,
+            interval_ms: 5000,
+        }),
+        memory: Some(MemoryUsage {
+            total_bytes: 1024,
+            available_bytes: 512,
+            free_bytes: 128,
+            buffers_bytes: 64,
+            cached_bytes: 256,
+            reclaimable_slab_bytes: 32,
+        }),
+    };
+    let wire = sample.encode().unwrap();
+    assert_eq!(GuestMetrics::decode(&wire), Some(sample));
+    for offset in [3, 7, 80, 87] {
+        let mut invalid = wire;
+        invalid[offset] = 1;
+        assert_eq!(GuestMetrics::decode(&invalid), None);
+    }
+    let mut invalid = wire;
+    invalid[16..20].copy_from_slice(&10001u32.to_le_bytes());
+    assert_eq!(GuestMetrics::decode(&invalid), None);
+    invalid = wire;
+    invalid[40..48].copy_from_slice(&1025u64.to_le_bytes());
+    assert_eq!(GuestMetrics::decode(&invalid), None);
+    for state in [
+        AgentState::Unavailable,
+        AgentState::Sampling,
+        AgentState::Stale,
+        AgentState::Unsupported,
+    ] {
+        assert!(GuestMetrics { state, ..sample }.encode().is_none());
+    }
+    for sample in [
+        GuestMetrics::default(),
+        GuestMetrics {
+            state: AgentState::Unsupported,
+            ..GuestMetrics::default()
+        },
+        GuestMetrics {
+            state: AgentState::Sampling,
+            cpu: None,
+            ..sample
+        },
+        GuestMetrics {
+            state: AgentState::Stale,
+            sample_age_ms: Some(16000),
+            ..GuestMetrics::default()
+        },
+    ] {
+        assert_eq!(
+            GuestMetrics::decode(&sample.encode().unwrap()),
+            Some(sample)
+        );
+    }
+}
 
 #[test]
 fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'static str> {
@@ -27,6 +92,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             info,
             64 * 1024 * 1024,
             Some(3),
+            Default::default(),
         )
         .ok_or("valid observation rejected")?;
         assert_eq!(
@@ -39,6 +105,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
                 ram_bytes: 64 * 1024 * 1024,
                 resident_bytes: Some(65 * 1024 * 1024),
                 boot_host_cpu: Some(3),
+                metrics: Default::default(),
             })
         );
         assert_eq!(decode_observation(&bytes[..23]), None);
@@ -75,11 +142,28 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             "a\0b",
             "abcdefghijklmnopqrstuvwxyz1234567",
         ] {
-            assert!(encode_observation(name, "/vm/storage/oi.itb", info, 0, None).is_none());
+            assert!(
+                encode_observation(
+                    name,
+                    "/vm/storage/oi.itb",
+                    info,
+                    0,
+                    None,
+                    Default::default()
+                )
+                .is_none()
+            );
         }
         let longest = "abcdefghijklmnopqrstuvwxyz123456";
-        let maximum = encode_observation(longest, "/vm/storage/oi.itb", info, 0, None)
-            .ok_or("valid observation rejected")?;
+        let maximum = encode_observation(
+            longest,
+            "/vm/storage/oi.itb",
+            info,
+            0,
+            None,
+            Default::default(),
+        )
+        .ok_or("valid observation rejected")?;
         assert_eq!(
             decode_observation(&maximum).map(|info| info.name),
             Some(longest)
@@ -108,22 +192,26 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             "/vm//oi.itb",
             "/vm/oi\nitb",
         ] {
-            assert!(encode_observation("oi", path, info, 0, None).is_none());
+            assert!(encode_observation("oi", path, info, 0, None, Default::default()).is_none());
         }
         let long_path = format!("/vm/{}", "a".repeat(508));
-        let longest_image = encode_observation("oi", &long_path, info, 0, None)
+        let longest_image = encode_observation("oi", &long_path, info, 0, None, Default::default())
             .ok_or("maximum length image path rejected")?;
         assert_eq!(
             decode_observation(&longest_image).map(|info| info.image),
             Some(long_path.as_str())
         );
-        assert!(encode_observation("oi", &(long_path + "a"), info, 0, None).is_none());
+        assert!(
+            encode_observation("oi", &(long_path + "a"), info, 0, None, Default::default())
+                .is_none()
+        );
         let unavailable = encode_observation(
             "storage-backend",
             "/vm/storage/oi.itb",
             info,
             64 * 1024 * 1024,
             None,
+            Default::default(),
         )
         .ok_or("valid observation rejected")?;
         assert_eq!(
@@ -136,6 +224,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             info,
             64 * 1024 * 1024,
             Some(0),
+            Default::default(),
         )
         .ok_or("valid observation rejected")?;
         assert_eq!(
