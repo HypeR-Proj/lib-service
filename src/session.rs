@@ -10,6 +10,11 @@ use hyper_os::startup::StartupPurpose;
 pub const CONSOLE_CONTROLLER: StartupPurpose<CapabilityChannelObject> =
     StartupPurpose::new(0x8002_0001);
 pub const LOG_CONNECTOR: StartupPurpose<CapabilityChannelObject> = StartupPurpose::new(0x8002_0002);
+/// Optional one-shot startup gate. READY reports terminal availability; only
+/// this release permits the first shell. Later session epochs do not use it.
+pub const START: StartupPurpose<hyper_os::handle::ByteChannelObject> =
+    StartupPurpose::new(0x8002_0003);
+pub const START_MESSAGE: &[u8] = b"HYPER-SESSION-START/1";
 pub const TASK_FACTORY_CONTRACT: StartupContract = StartupContract::exact(
     crate::process::TASK_FACTORY_NAME,
     hyper_os::startup::TASK_FACTORY,

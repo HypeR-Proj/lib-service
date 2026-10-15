@@ -24,6 +24,9 @@ pub struct ShellDelegation<'a> {
     pub objects: HandleRef<'a, ObjectInspectorObject>,
     pub memory: HandleRef<'a, MemoryInspectorObject>,
     pub cpus: HandleRef<'a, CpuInspectorObject>,
+    pub services: Option<HandleRef<'a, CapabilityChannelObject>>,
+    pub service_control: Option<HandleRef<'a, CapabilityChannelObject>>,
+    pub journal: Option<HandleRef<'a, CapabilityChannelObject>>,
     pub filesystem: Option<HandleRef<'a, CapabilityChannelObject>>,
     pub virtual_machines: Option<HandleRef<'a, CapabilityChannelObject>>,
 }
@@ -51,6 +54,19 @@ impl ShellDelegation<'_> {
         }
         if let Some(handle) = self.virtual_machines {
             grant!(handle, crate::vm::DELEGATED_CLIENT_CONNECTION_CONTRACT);
+        }
+        for (handle, purpose) in [
+            (self.services, hyper_component::OBSERVE),
+            (self.service_control, hyper_component::CONTROL),
+            (self.journal, hyper_journal::QUERY),
+        ] {
+            if let Some(handle) = handle {
+                builder.add_handle_duplicate(
+                    handle,
+                    purpose.as_raw(),
+                    RightsOffer::Exact(hyper_service_ipc::CLIENT_RIGHTS),
+                )?;
+            }
         }
         Ok(())
     }

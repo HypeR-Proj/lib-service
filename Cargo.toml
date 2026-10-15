@@ -14,6 +14,9 @@ description = "Typed service contracts for HypeR Native system applications"
 [dependencies]
 hyper-block.workspace = true
 hyper-os.workspace = true
+hyper-component.workspace = true
+hyper-service-ipc.workspace = true
+hyper-journal.workspace = true
 serde.workspace = true
 
 [lints]
