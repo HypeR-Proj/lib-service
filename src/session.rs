@@ -19,6 +19,7 @@ pub const TASK_FACTORY_CONTRACT: StartupContract = StartupContract::exact(
     crate::process::TASK_FACTORY_NAME,
     hyper_os::startup::TASK_FACTORY,
     hyper_os::Rights::CREATE_PROCESS
+        .union(hyper_os::Rights::RETAIN_PROCESS)
         .union(hyper_os::Rights::CREATE_TASK_GROUP)
         .union(hyper_os::Rights::DUPLICATE)
         .union(hyper_os::Rights::TRANSFER),

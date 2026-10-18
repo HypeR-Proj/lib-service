@@ -201,7 +201,9 @@ pub const CHILD_LIBRARY_DIRECTORY_CONTRACT: StartupContract = StartupContract::e
 pub const VM_MANAGER_TASK_FACTORY_CONTRACT: StartupContract = StartupContract::exact(
     TASK_FACTORY_NAME,
     startup::TASK_FACTORY,
-    Rights::CREATE_PROCESS.union(Rights::CREATE_TASK_GROUP),
+    Rights::CREATE_PROCESS
+        .union(Rights::CREATE_TASK_GROUP)
+        .union(Rights::RETAIN_PROCESS),
 );
 pub const VM_MANAGER_RESOURCE_DOMAIN_CONTRACT: StartupContract = StartupContract::exact(
     RESOURCE_DOMAIN_NAME,
@@ -242,7 +244,15 @@ pub const APPLICATION_STARTUP_CONTRACTS: &[StartupContract] = &[
         startup::TASK_FACTORY,
         Rights::CREATE_PROCESS,
     )
-    .with_optional_rights(SHELL_TASK_FACTORY_CONTRACT.allowed_rights()),
+    // Deployment may explicitly delegate supervision to an application. This
+    // ceiling grants nothing by itself; the shell's separate contract remains
+    // limited to ordinary child creation.
+    .with_optional_rights(
+        SHELL_TASK_FACTORY_CONTRACT
+            .allowed_rights()
+            .union(Rights::CREATE_TASK_GROUP)
+            .union(Rights::RETAIN_PROCESS),
+    ),
     StartupContract::exact(
         TASK_GROUP_NAME,
         startup::TASK_GROUP,
