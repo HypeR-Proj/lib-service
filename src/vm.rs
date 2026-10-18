@@ -391,7 +391,7 @@ impl VcpuControlRequest {
     }
 }
 /// An acknowledgement of policy acceptance plus a best-effort placement snapshot.
-/// Success does not promise that an automatic migration has already completed.
+/// Success does not promise that a required migration has already completed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct VcpuControlReply {
     pub sequence: u64,
