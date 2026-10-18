@@ -25,7 +25,9 @@ pub const STARTUP_CONTRACTS: &[StartupContract] = &[
     StartupContract::exact(
         DEVICE_AUTHORITY_NAME,
         startup::DEVICE_ASSIGNMENT_AUTHORITY,
-        Rights::INSPECT,
+        Rights::INSPECT
+            .union(Rights::ASSIGN_DEVICE)
+            .union(Rights::MAP_DMA),
     ),
 ];
 
