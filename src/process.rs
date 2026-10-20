@@ -182,7 +182,11 @@ pub const SHELL_MEMORY_INSPECTOR_CONTRACT: StartupContract = StartupContract::ex
 pub const SHELL_CPU_INSPECTOR_CONTRACT: StartupContract = StartupContract::exact(
     CPU_INSPECTOR_NAME,
     startup::CPU_INSPECTOR,
-    delegated(Rights::INSPECT),
+    delegated(
+        Rights::INSPECT
+            .union(Rights::SET_ATTRIBUTES)
+            .union(Rights::INSPECT_DETAILS),
+    ),
 );
 pub const CHILD_LOADER_CONTRACT: StartupContract = StartupContract::exact(
     CHILD_LOADER_NAME,
