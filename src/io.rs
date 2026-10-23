@@ -91,6 +91,18 @@ pub const MAILBOX_RIGHTS: Rights = Rights::WAIT.union(Rights::READ).union(Rights
 pub const NOTIFICATION_RIGHTS: Rights = Rights::INSPECT.union(Rights::WRITE).union(Rights::WAIT);
 pub const FRONTEND_RIGHTS: Rights = Rights::INSPECT.union(Rights::WRITE).union(Rights::WAIT);
 pub const MEMORY_RIGHTS: Rights = Rights::INSPECT.union(Rights::MAP);
+/// VM control authority moved to the I/O broker and returned after binding.
+///
+/// Both directions use this exact contract, independently of optional rights on
+/// the caller's original VM handle. In particular, the broker receives no
+/// scheduling authority. The runtime retains its pre-opened vCPU handles when
+/// transferring the VM handle; their scheduling rights are unaffected. Opening
+/// another vCPU handle from the returned VM handle grants no scheduling elevation.
+pub const MACHINE_RIGHTS: Rights = Rights::TRANSFER
+    .union(Rights::WRITE)
+    .union(Rights::WAIT)
+    .union(Rights::INSPECT)
+    .union(Rights::REQUEST_STOP);
 
 pub fn encode_memory(base: u64, length: u64) -> Option<[u8; MEMORY_BYTES]> {
     if length == 0 || (base | length) & 4095 != 0 || base.checked_add(length).is_none() {

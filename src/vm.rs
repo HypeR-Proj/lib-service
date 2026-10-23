@@ -71,7 +71,8 @@ pub const MANAGER_CREATION_AUTHORITY_CONTRACT: StartupContract = StartupContract
     CREATION_AUTHORITY_NAME,
     hyper_os::startup::VIRTUAL_MACHINE_CREATION_AUTHORITY,
     Rights::DERIVE.union(Rights::CREATE_VIRTUAL_MACHINE),
-);
+)
+.with_optional_rights(hyper_os::scheduling::RIGHTS);
 pub const MANAGER_CONNECTION_CONTRACT: StartupContract = StartupContract::exact(
     MANAGER_CONNECTION_NAME,
     MANAGER_CONNECTION,
@@ -99,7 +100,8 @@ pub const RUNTIME_CREATION_LEASE_CONTRACT: StartupContract = StartupContract::ex
     CREATION_LEASE_NAME,
     CREATION_LEASE,
     Rights::CREATE_VIRTUAL_MACHINE.union(Rights::INSPECT),
-);
+)
+.with_optional_rights(hyper_os::scheduling::RIGHTS);
 pub const RUNTIME_INSTANCE_CONTROL_CONTRACT: StartupContract = StartupContract::exact(
     INSTANCE_CONTROL_NAME,
     INSTANCE_CONTROL,
@@ -891,7 +893,16 @@ mod tests {
             ]
         );
         for (index, contract) in RUNTIME_STARTUP_CONTRACTS.iter().enumerate() {
-            assert_eq!(contract.required_rights(), contract.allowed_rights());
+            if *contract == RUNTIME_CREATION_LEASE_CONTRACT {
+                assert_eq!(
+                    contract
+                        .required_rights()
+                        .union(hyper_os::scheduling::RIGHTS),
+                    contract.allowed_rights()
+                );
+            } else {
+                assert_eq!(contract.required_rights(), contract.allowed_rights());
+            }
             for other in RUNTIME_STARTUP_CONTRACTS.iter().skip(index + 1) {
                 assert_ne!(contract.name(), other.name());
                 assert_ne!(contract.purpose(), other.purpose());
@@ -906,7 +917,11 @@ mod tests {
         assert!(rights.contains(Rights::CREATE_VIRTUAL_MACHINE));
         assert!(!rights.contains(Rights::TRANSFER));
         assert!(!rights.contains(Rights::DUPLICATE));
-        assert_eq!(rights, RUNTIME_CREATION_LEASE_CONTRACT.allowed_rights());
+        assert_eq!(
+            rights.union(hyper_os::scheduling::RIGHTS),
+            RUNTIME_CREATION_LEASE_CONTRACT.allowed_rights()
+        );
+        assert!(!rights.contains(hyper_os::scheduling::RIGHTS));
     }
 
     #[test]

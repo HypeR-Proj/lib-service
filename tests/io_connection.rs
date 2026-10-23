@@ -9,6 +9,17 @@ use hyper_service::io::{
 const MAC: [u8; 6] = [2, 0x48, 0x59, 0, 0, 1];
 
 #[test]
+fn broker_vm_control_contract_excludes_scheduling_authority() {
+    use hyper_service::io::MACHINE_RIGHTS;
+
+    // Optional creation authority must not widen the I/O broker's grant.
+    assert_eq!(
+        MACHINE_RIGHTS.bits() & hyper_os::scheduling::RIGHTS.bits(),
+        0
+    );
+}
+
+#[test]
 fn each_device_set_has_one_canonical_connection() -> Result<(), &'static str> {
     for (devices, volume, network) in [
         (DISK, Some("alpine"), None),
