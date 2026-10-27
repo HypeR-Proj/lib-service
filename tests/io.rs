@@ -92,6 +92,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             info,
             64 * 1024 * 1024,
             Some(3),
+            Some(u64::MAX),
             Default::default(),
         )
         .ok_or("valid observation rejected")?;
@@ -105,6 +106,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
                 ram_bytes: 64 * 1024 * 1024,
                 resident_bytes: Some(65 * 1024 * 1024),
                 boot_host_cpu: Some(3),
+                boot_thread_id: Some(u64::MAX),
                 metrics: Default::default(),
             })
         );
@@ -149,6 +151,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
                     info,
                     0,
                     None,
+                    None,
                     Default::default()
                 )
                 .is_none()
@@ -160,6 +163,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             "/vm/storage/oi.itb",
             info,
             0,
+            None,
             None,
             Default::default(),
         )
@@ -179,7 +183,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             assert_eq!(decode_observation(&invalid), None);
         }
         invalid = bytes;
-        invalid[37] = 1;
+        invalid[37] = 2;
         assert_eq!(decode_observation(&invalid), None);
         invalid = bytes;
         invalid[583] = 1;
@@ -192,24 +196,36 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             "/vm//oi.itb",
             "/vm/oi\nitb",
         ] {
-            assert!(encode_observation("oi", path, info, 0, None, Default::default()).is_none());
+            assert!(
+                encode_observation("oi", path, info, 0, None, None, Default::default()).is_none()
+            );
         }
         let long_path = format!("/vm/{}", "a".repeat(508));
-        let longest_image = encode_observation("oi", &long_path, info, 0, None, Default::default())
-            .ok_or("maximum length image path rejected")?;
+        let longest_image =
+            encode_observation("oi", &long_path, info, 0, None, None, Default::default())
+                .ok_or("maximum length image path rejected")?;
         assert_eq!(
             decode_observation(&longest_image).map(|info| info.image),
             Some(long_path.as_str())
         );
         assert!(
-            encode_observation("oi", &(long_path + "a"), info, 0, None, Default::default())
-                .is_none()
+            encode_observation(
+                "oi",
+                &(long_path + "a"),
+                info,
+                0,
+                None,
+                None,
+                Default::default()
+            )
+            .is_none()
         );
         let unavailable = encode_observation(
             "storage-backend",
             "/vm/storage/oi.itb",
             info,
             64 * 1024 * 1024,
+            None,
             None,
             Default::default(),
         )
@@ -224,6 +240,7 @@ fn observations_validate_wire_format_and_preserve_metrics() -> Result<(), &'stat
             info,
             64 * 1024 * 1024,
             Some(0),
+            None,
             Default::default(),
         )
         .ok_or("valid observation rejected")?;

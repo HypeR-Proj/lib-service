@@ -157,8 +157,8 @@ pub fn send_capabilities(
 }
 
 /// Read-only broker observation; no VM/control capability crosses this exchange.
-pub const OBSERVE_MESSAGE: &[u8] = b"HIOSTAT4";
-pub const OBSERVATION_BYTES: usize = 584 + metrics::WIRE_BYTES;
+pub const OBSERVE_MESSAGE: &[u8] = b"HIOSTAT5";
+pub const OBSERVATION_BYTES: usize = 592 + metrics::WIRE_BYTES;
 /// Identity admission can wait behind synchronous guest-mapping retirement.
 /// Best-effort status callers may use a shorter deadline on their reply channel.
 pub const OBSERVATION_TIMEOUT_SECONDS: u64 = 5;
@@ -173,6 +173,7 @@ pub fn encode_observation(
     info: hyper_os::vm::VirtualMachineInfo,
     ram_bytes: u64,
     boot_host_cpu: Option<u32>,
+    boot_thread_id: Option<u64>,
     metrics: metrics::GuestMetrics,
 ) -> Option<[u8; OBSERVATION_BYTES]> {
     use hyper_os::vm::VirtualMachinePhase;
@@ -200,7 +201,9 @@ pub fn encode_observation(
     bytes[38..40].copy_from_slice(&(image.len() as u16).to_le_bytes());
     bytes[40..40 + name.len()].copy_from_slice(name.as_bytes());
     bytes[72..72 + image.len()].copy_from_slice(image.as_bytes());
-    bytes[584..].copy_from_slice(&metrics.encode()?);
+    bytes[37] = u8::from(boot_thread_id.is_some());
+    bytes[584..592].copy_from_slice(&boot_thread_id.unwrap_or(0).to_le_bytes());
+    bytes[592..].copy_from_slice(&metrics.encode()?);
     Some(bytes)
 }
 
@@ -215,6 +218,7 @@ pub struct Observation<'a> {
     pub resident_bytes: Option<u64>,
     /// Current assignment of the I/O VM's boot vCPU (vCPU 0).
     pub boot_host_cpu: Option<u32>,
+    pub boot_thread_id: Option<u64>,
     pub metrics: metrics::GuestMetrics,
 }
 
@@ -223,7 +227,8 @@ pub fn decode_observation(bytes: &[u8]) -> Option<Observation<'_>> {
     if bytes.len() != OBSERVATION_BYTES
         || &bytes[..8] != OBSERVE_MESSAGE
         || bytes[9..12] != [0; 3]
-        || bytes[37] != 0
+        || bytes[37] > 1
+        || (bytes[37] == 0 && bytes[584..592] != [0; 8])
     {
         return None;
     }
@@ -241,7 +246,7 @@ pub fn decode_observation(bytes: &[u8]) -> Option<Observation<'_>> {
         _ => return None,
     };
     let ram_bytes = u64::from_le_bytes(bytes[16..24].try_into().ok()?);
-    let metrics = metrics::GuestMetrics::decode(&bytes[584..])?;
+    let metrics = metrics::GuestMetrics::decode(&bytes[592..])?;
     if metrics
         .memory
         .is_some_and(|memory| memory.total_bytes > ram_bytes)
@@ -262,6 +267,8 @@ pub fn decode_observation(bytes: &[u8]) -> Option<Observation<'_>> {
             u32::MAX => None,
             cpu => Some(cpu),
         },
+        boot_thread_id: (bytes[37] == 1)
+            .then_some(u64::from_le_bytes(bytes[584..592].try_into().ok()?)),
         metrics,
     })
 }

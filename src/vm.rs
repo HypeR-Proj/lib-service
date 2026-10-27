@@ -35,6 +35,9 @@ pub const MANAGER_CONNECTION: StartupPurpose<CapabilityChannelObject> =
 pub const CLIENT_CONTROL: StartupPurpose<ByteChannelObject> = StartupPurpose::new(0x8005_0008);
 pub const CLIENT_CAPABILITIES: StartupPurpose<CapabilityChannelObject> =
     StartupPurpose::new(0x8005_0009);
+/// Read-only VM-to-scheduler-thread observations; never accepts fleet control.
+pub const TRACE_OBSERVER: StartupPurpose<ByteChannelObject> = StartupPurpose::new(0x8005_000a);
+pub mod trace;
 
 /// Rights retained while the manager duplicates a guest image into a runtime.
 pub const MANAGED_IMAGE_RIGHTS: Rights = Rights::READ
@@ -439,24 +442,30 @@ pub struct VcpuControlReply {
     pub vcpu: u32,
     pub host_cpu: Option<u32>,
     pub pending_host_cpu: Option<u32>,
+    pub scheduler_thread_id: Option<u64>,
     pub status: hyper_os::Status,
 }
+pub const VCPU_REPLY_BYTES: usize = 48;
 impl VcpuControlReply {
     #[must_use]
-    pub fn encode(self) -> [u8; OBSERVATION_BYTES] {
-        let mut bytes = [0; OBSERVATION_BYTES];
+    pub fn encode(self) -> [u8; VCPU_REPLY_BYTES] {
+        let mut bytes = [0; VCPU_REPLY_BYTES];
         bytes[..8].copy_from_slice(&encode_message(KIND_VCPU_CONTROL_REPLY, 1, 0));
         bytes[8..16].copy_from_slice(&self.sequence.to_le_bytes());
         bytes[16..20].copy_from_slice(&self.vcpu.to_le_bytes());
         bytes[20..24].copy_from_slice(&self.host_cpu.unwrap_or(u32::MAX).to_le_bytes());
         bytes[24..28].copy_from_slice(&self.pending_host_cpu.unwrap_or(u32::MAX).to_le_bytes());
         bytes[32..40].copy_from_slice(&self.status.as_raw().to_le_bytes());
+        bytes[28] = u8::from(self.scheduler_thread_id.is_some());
+        bytes[40..48].copy_from_slice(&self.scheduler_thread_id.unwrap_or(0).to_le_bytes());
         bytes
     }
     #[must_use]
     pub fn decode(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() != OBSERVATION_BYTES
-            || bytes[28..32] != [0; 4]
+        if bytes.len() != VCPU_REPLY_BYTES
+            || bytes[28] > 1
+            || bytes[29..32] != [0; 3]
+            || (bytes[28] == 0 && bytes[40..48] != [0; 8])
             || decode_message(&bytes[..8], KIND_VCPU_CONTROL_REPLY) != Some((1, 0))
         {
             return None;
@@ -466,6 +475,8 @@ impl VcpuControlReply {
             Some((raw != u32::MAX).then_some(raw))
         };
         Some(Self {
+            scheduler_thread_id: (bytes[28] == 1)
+                .then_some(u64::from_le_bytes(bytes[40..48].try_into().ok()?)),
             sequence: u64::from_le_bytes(bytes[8..16].try_into().ok()?),
             vcpu: u32::from_le_bytes(bytes[16..20].try_into().ok()?),
             host_cpu: cpu(20..24)?,
@@ -1314,11 +1325,12 @@ mod vcpu_control_tests {
             vcpu: 0,
             host_cpu: Some(0),
             pending_host_cpu: Some(2),
+            scheduler_thread_id: Some(u64::MAX),
             status: hyper_os::Status::OK,
         };
         let mut bytes = reply.encode();
         assert_eq!(VcpuControlReply::decode(&bytes), Some(reply));
-        bytes[28] = 1;
+        bytes[28] = 2;
         assert_eq!(VcpuControlReply::decode(&bytes), None);
     }
 }
