@@ -272,6 +272,45 @@ const KIND_OBSERVATION_REQUEST: u8 = 9;
 const KIND_OBSERVATION: u8 = 10;
 const KIND_VCPU_CONTROL_REQUEST: u8 = 11;
 const KIND_VCPU_CONTROL_REPLY: u8 = 12;
+const KIND_CONSOLE_ATTACH: u8 = 13;
+
+/// One bounded capability rendezvous, including scheduling delay on either peer.
+pub const CONSOLE_HANDOFF_TIMEOUT: core::time::Duration = core::time::Duration::from_secs(5);
+
+/// Manager-selected absolute monotonic deadline; a queued request must not
+/// start another receive window after the sender has already abandoned it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ConsoleAttachRequest {
+    pub deadline_ns: u64,
+}
+
+impl ConsoleAttachRequest {
+    /// Preserve the sender's expiry and independently bound a receiver's wait.
+    #[must_use]
+    pub fn receive_deadline(self, now_ns: u64) -> Option<u64> {
+        (self.deadline_ns > now_ns && self.deadline_ns != u64::MAX).then(|| {
+            self.deadline_ns
+                .min(now_ns.saturating_add(CONSOLE_HANDOFF_TIMEOUT.as_nanos() as u64))
+        })
+    }
+
+    #[must_use]
+    pub fn encode(self) -> [u8; 16] {
+        let mut bytes = [0; 16];
+        bytes[..8].copy_from_slice(&encode_message(KIND_CONSOLE_ATTACH, 1, 0));
+        bytes[8..].copy_from_slice(&self.deadline_ns.to_le_bytes());
+        bytes
+    }
+
+    #[must_use]
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() != 16 || decode_message(&bytes[..8], KIND_CONSOLE_ATTACH) != Some((1, 0)) {
+            return None;
+        }
+        let deadline_ns = u64::from_le_bytes(bytes[8..].try_into().ok()?);
+        (deadline_ns != 0 && deadline_ns != u64::MAX).then_some(Self { deadline_ns })
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ObservationRequest(pub u64);
@@ -441,7 +480,6 @@ impl VcpuControlReply {
 #[repr(u8)]
 pub enum InstanceCommand {
     Stop = 1,
-    AttachConsole = 2,
 }
 
 impl InstanceCommand {
@@ -455,7 +493,6 @@ impl InstanceCommand {
         let (value, detail) = decode_message(message, KIND_INSTANCE_COMMAND)?;
         match (value, detail) {
             (1, 0) => Some(Self::Stop),
-            (2, 0) => Some(Self::AttachConsole),
             _ => None,
         }
     }
@@ -773,6 +810,49 @@ fn decode_message(message: &[u8], expected_kind: u8) -> Option<(u8, u8)> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn console_attach_keeps_one_finite_absolute_deadline() {
+        let request = super::ConsoleAttachRequest {
+            deadline_ns: 123456789,
+        };
+        let bytes = request.encode();
+        assert_eq!(super::ConsoleAttachRequest::decode(&bytes), Some(request));
+        assert_eq!(request.receive_deadline(123456789), None);
+        assert_eq!(request.receive_deadline(123456790), None);
+        assert_eq!(request.receive_deadline(123456780), Some(123456789));
+        assert_eq!(
+            super::ConsoleAttachRequest {
+                deadline_ns: u64::MAX - 1
+            }
+            .receive_deadline(100),
+            Some(5_000_000_100)
+        );
+        assert_eq!(super::InstanceCommand::decode(&bytes), None);
+        for deadline_ns in [0, u64::MAX] {
+            assert_eq!(
+                super::ConsoleAttachRequest::decode(
+                    &super::ConsoleAttachRequest { deadline_ns }.encode()
+                ),
+                None
+            );
+        }
+        for length in 0..bytes.len() {
+            assert_eq!(super::ConsoleAttachRequest::decode(&bytes[..length]), None);
+        }
+        let mut extended = bytes.to_vec();
+        extended.push(0);
+        assert_eq!(super::ConsoleAttachRequest::decode(&extended), None);
+        for index in [0, 3, 4, 5, 6, 7] {
+            let mut malformed = bytes;
+            malformed[index] ^= 0xff;
+            assert_eq!(super::ConsoleAttachRequest::decode(&malformed), None);
+        }
+        // The old deadline-free attach opcode is no longer accepted.
+        assert_eq!(
+            super::InstanceCommand::decode(&[b'H', b'V', b'M', 1, 2, 2, 0, 0]),
+            None
+        );
+    }
     use super::{
         INSTANCE_CONTROL_RIGHTS, InstanceCommand, InstanceEvent, InstanceFailure, InstanceStatus,
         InstanceStopState, InstanceTracker, InvalidStatusTransition, MANAGED_IMAGE_RIGHTS,
