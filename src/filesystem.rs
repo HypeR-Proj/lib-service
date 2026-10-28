@@ -79,6 +79,13 @@ pub const BUFFER_RIGHTS: Rights = Rights::READ
     .union(Rights::TRANSFER);
 /// The active worker may duplicate its mapped VMO for a later drained handoff.
 pub const SERVER_BUFFER_RIGHTS: Rights = BUFFER_RIGHTS.union(Rights::DUPLICATE);
+/// Queue authority remains bound to exactly one mounted volume across handoff.
+pub const QUEUE_RIGHTS: Rights = Rights::READ
+    .union(Rights::WRITE)
+    .union(Rights::WAIT)
+    .union(Rights::INSPECT)
+    .union(Rights::DUPLICATE)
+    .union(Rights::TRANSFER);
 pub const CONTROL_CONNECT: &[u8] = b"HFSMNT01";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
