@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "name": "service",
+  "kind": "library",
+  "origin": {
+    "repository": "https://github.com/roolrz/HypeR",
+    "commit": "8d42d047058a2b58a291803700e86487fb723f7a"
+  },
+  "sources": {
+    "Cargo.toml": "lib/service/Cargo.toml",
+    "src/console.rs": "lib/service/src/console.rs",
+    "src/filesystem.rs": "lib/service/src/filesystem.rs",
+    "src/filesystem/control.rs": "lib/service/src/filesystem/control.rs",
+    "src/io.rs": "lib/service/src/io.rs",
+    "src/io/binding.rs": "lib/service/src/io/binding.rs",
+    "src/io/connection.rs": "lib/service/src/io/connection.rs",
+    "src/io/metrics.rs": "lib/service/src/io/metrics.rs",
+    "src/lib.rs": "lib/service/src/lib.rs",
+    "src/process.rs": "lib/service/src/process.rs",
+    "src/process/shell.rs": "lib/service/src/process/shell.rs",
+    "src/session.rs": "lib/service/src/session.rs",
+    "src/stdio.rs": "lib/service/src/stdio.rs",
+    "src/vm.rs": "lib/service/src/vm.rs",
+    "src/vm/trace.rs": "lib/service/src/vm/trace.rs",
+    "tests/io.rs": "lib/service/tests/io.rs",
+    "tests/io_connection.rs": "lib/service/tests/io_connection.rs",
+    "tests/retirement_authority.rs": "lib/service/tests/retirement_authority.rs"
+  },
+  "SPDX-FileCopyrightText": "2026 roolrz",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "mounts": {
+    "": "lib/service"
+  },
+  "packages": [
+    "hyper-service"
+  ],
+  "tests": [
+    [
+      "make",
+      "app-test",
+      "APP_TEST_PACKAGE=hyper-service"
+    ]
+  ]
+}
