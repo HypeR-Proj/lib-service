@@ -4,33 +4,32 @@
 
 [package]
 name = "hyper-service"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/HypeR-Proj/lib-service"
 publish = false
 description = "Typed service contracts for HypeR Native system applications"
-workspace = "../../app"
 
 [dependencies]
 
 [dependencies.hyper-block]
-workspace = true
+path = "../block"
 
 [dependencies.hyper-os]
-workspace = true
+version = "=0.0.0"
 
 [dependencies.hyper-component]
-workspace = true
+path = "../component"
 
 [dependencies.hyper-service-ipc]
-workspace = true
+path = "../service-ipc"
 
 [dependencies.hyper-journal]
-workspace = true
+path = "../journal"
 
 [dependencies.serde]
-workspace = true
+version = "1"
 features = ["derive"]
 
 [lints]
@@ -53,3 +52,19 @@ unsafe_op_in_unsafe_fn = "deny"
 [lints.rust.unexpected_cfgs]
 level = "warn"
 check-cfg = ["cfg(target_os, values(\"hyper\"))"]
+
+[workspace]
+resolver = "3"
+members = []
+
+[profile]
+
+[profile.release]
+codegen-units = 1
+debug = 1
+incremental = false
+lto = "fat"
+opt-level = "s"
+overflow-checks = true
+panic = "abort"
+strip = "none"
