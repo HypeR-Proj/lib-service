@@ -61,10 +61,11 @@ pub fn execute(
     startup: &mut hyper_os::startup::Startup<'_>,
     bytes: &[u8],
 ) -> hyper_os::Result<(bool, alloc::string::String)> {
+    let until = hyper_os::time::deadline_after(core::time::Duration::from_secs(120))?.as_raw();
     let connector = hyper_os::capability_channel::CapabilityChannel::from_handle(
         startup.take(super::CONTROL_CLIENT)?,
     );
-    execute_channel(&connector, bytes)
+    execute_channel_until(&connector, bytes, until)
 }
 
 /// Reuse a supervisor's connector without consuming its delegation authority.
@@ -72,17 +73,25 @@ pub fn execute_channel(
     connector: &hyper_os::capability_channel::CapabilityChannel,
     bytes: &[u8],
 ) -> hyper_os::Result<(bool, alloc::string::String)> {
+    let until = hyper_os::time::deadline_after(core::time::Duration::from_secs(120))?.as_raw();
+    execute_channel_until(connector, bytes, until)
+}
+
+/// Share one absolute caller deadline across the command, attachment and reply.
+pub fn execute_channel_until(
+    connector: &hyper_os::capability_channel::CapabilityChannel,
+    bytes: &[u8],
+    until: u64,
+) -> hyper_os::Result<(bool, alloc::string::String)> {
     use hyper_os::{
         capability_channel::CapabilityDisposition,
-        handle::{ByteChannelObject, Rights, RightsOffer},
-        wait::{ObjectSignals, WaitItem, wait_many},
+        handle::{Rights, RightsOffer},
     };
     if decode(bytes).is_none() {
-        return Err(hyper_os::Error::InvalidResponse);
+        return Err(hyper_os::Error::Status(hyper_os::Status::INVALID_ARGUMENT));
     }
     let (client, server) = hyper_os::channel::create_pair()?;
-    client.as_byte_channel().send(bytes)?;
-    let deadline = hyper_os::time::deadline_after(core::time::Duration::from_secs(120))?.as_raw();
+    client.as_byte_channel().send_until(bytes, until)?;
     let mut server = Some(server);
     crate::io::send_capabilities(
         connector,
@@ -91,18 +100,12 @@ pub fn execute_channel(
             &mut server,
             RightsOffer::Exact(Rights::READ.union(Rights::WRITE).union(Rights::WAIT)),
         )?],
-        deadline,
-    )?;
-    wait_many(
-        &[WaitItem::new(
-            client.as_handle_ref(),
-            ObjectSignals::<ByteChannelObject>::READABLE
-                .union(ObjectSignals::<ByteChannelObject>::PEER_CLOSED),
-        )],
-        deadline,
+        until,
     )?;
     let mut response = alloc::vec![0; MAX_BYTES];
-    let length = client.as_byte_channel().try_receive(&mut response)?;
+    let length = client
+        .as_byte_channel()
+        .receive_until(&mut response, until)?;
     let text =
         core::str::from_utf8(&response[..length]).map_err(|_| hyper_os::Error::InvalidResponse)?;
     if let Some(text) = text.strip_prefix("OK\n") {
