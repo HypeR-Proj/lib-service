@@ -10,6 +10,8 @@ use crate::StartupContract;
 
 mod shell;
 pub use shell::ShellDelegation;
+pub mod control;
+pub mod job;
 
 pub const ROOT_DIRECTORY_NAME: &str = "process.root-directory";
 pub const TASK_FACTORY_NAME: &str = "process.task-factory";
