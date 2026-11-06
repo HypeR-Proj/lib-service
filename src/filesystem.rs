@@ -6,7 +6,7 @@
 pub mod control;
 
 use crate::StartupContract;
-use hyper_os::handle::{ByteChannelObject, CapabilityChannelObject, NativeBlockObject, Rights};
+use hyper_os::handle::{BlockQueueObject, ByteChannelObject, CapabilityChannelObject, Rights};
 use hyper_os::startup::StartupPurpose;
 
 /// Init connects one volume provider to the resident filesystem manager.
@@ -51,9 +51,9 @@ pub const DELEGATED_CONTROL_CLIENT_CONTRACT: StartupContract = StartupContract::
 pub const MANAGER_STARTUP_CONTRACTS: &[StartupContract] =
     &[ATTACH_CONTRACT, CONTROL_SERVER_CONTRACT];
 
-/// Only the selected worker receives volume authority. The owner pipe makes
-/// manager termination observable without a syscall on each filesystem read.
-pub const BLOCK: StartupPurpose<NativeBlockObject> = StartupPurpose::new(0x8007_0003);
+/// Workers receive a revocable per-generation queue. The manager alone owns
+/// NativeBlock and can retire every alias before permitting volume reuse.
+pub const QUEUE: StartupPurpose<BlockQueueObject> = StartupPurpose::new(0x8007_0003);
 pub const OWNER: StartupPurpose<ByteChannelObject> = StartupPurpose::new(0x8007_0005);
 
 pub const ATTACH_BYTES: usize = 160;

@@ -23,6 +23,10 @@ pub enum Request<'a> {
     Unmount {
         target: &'a str,
     },
+    /// Explicitly discard a failed provider and retire its old queue.
+    DetachFailed {
+        target: &'a str,
+    },
     Entry {
         table: &'a str,
         name: &'a str,
@@ -46,6 +50,7 @@ pub fn decode(bytes: &[u8]) -> Option<Request<'_>> {
             options: next()?,
         },
         "umount" => Request::Unmount { target: next()? },
+        "detach-failed" => Request::DetachFailed { target: next()? },
         "entry" => Request::Entry {
             table: next()?,
             name: next()?,
@@ -120,6 +125,19 @@ pub fn execute_channel_until(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn failed_detach_is_explicit_and_rejects_extra_fields() {
+        assert_eq!(
+            decode(b"detach-failed\0/data\0"),
+            Some(Request::DetachFailed { target: "/data" })
+        );
+        assert_eq!(
+            decode(b"umount\0/data\0"),
+            Some(Request::Unmount { target: "/data" })
+        );
+        assert_eq!(decode(b"detach-failed\0/data\0extra\0"), None);
+        assert_eq!(decode(b"detach-failed\0"), None);
+    }
     #[test]
     fn caller_selects_the_mount_table() {
         assert_eq!(
