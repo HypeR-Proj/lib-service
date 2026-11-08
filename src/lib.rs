@@ -9,6 +9,7 @@ pub mod console;
 pub mod filesystem;
 pub mod io;
 pub mod process;
+pub mod random;
 pub mod session;
 pub mod stdio;
 pub mod vm;

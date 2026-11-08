@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Typed startup and wire contracts between Native services.
 
-Contains console, filesystem, I/O, process, session, stdio and VM protocol modules.
+Contains console, filesystem, I/O, process, random, session, stdio and VM protocol modules.
 Clients and services share capability-purpose identifiers and record validation while
 each service retains its own state owner.
 
@@ -119,3 +119,28 @@ A dead supervisor route is retained as unavailable until the member itself
 terminates. Group fan-out is a request, not proof that each parent acted; callers
 must observe actual process completion. The registry never substitutes default
 termination for an unavailable route.
+
+## Secure random bytes
+
+`random` defines a bounded binary request/reply protocol for initialized random
+bytes from the trusted I/O appliance. It adds no Native random generator or
+weak fallback. `CLIENT` (`0x800d0001`) requires WRITE|WAIT; explicitly inherited
+grants also carry DUPLICATE|TRANSFER. `SERVER` (`0x800d0002`) requires READ|WAIT.
+Each request moves a fresh private ByteChannel reply endpoint with WRITE|WAIT.
+
+Version 1 uses little-endian `HRNG` frames. A 32-byte DRAW request carries reserved
+zero flags, a count of 1..192 and an absolute monotonic deadline. The reply has a
+32-byte header and exactly the requested bytes on success. Errors have no
+payload; unknown statuses, extra bytes or nonzero reserved fields are rejected.
+`Request`, `Reply` and `decode_reply` provide the shared checked codec. Reply
+owners clear their internal buffer when dropped and do not implement Debug.
+Applications must not log serialized payloads.
+
+`Client::read` splits larger requests into bounded chunks and returns a successful
+prefix if a later chunk fails. Nonblocking mode suppresses entropy-readiness
+retries; transport admission and reply may still wait within the supplied
+absolute deadline. Blocking reads retry WOULD_BLOCK after at most 10ms, capped
+by that same deadline. `fill` requires completion but can leave a modified
+prefix on failure. Empty buffers need no RPC. Unsupported or missing authority
+never selects another source. The Linux provider owns initialization and
+reseeding; this library caches neither seeds nor random bytes.

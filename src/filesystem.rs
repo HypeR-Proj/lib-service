@@ -52,7 +52,7 @@ pub const MANAGER_STARTUP_CONTRACTS: &[StartupContract] =
     &[ATTACH_CONTRACT, CONTROL_SERVER_CONTRACT];
 
 /// Workers receive a revocable per-generation queue. The manager alone owns
-/// NativeBlock and can retire every alias before permitting volume reuse.
+/// `NativeBlock` and can retire every alias before permitting volume reuse.
 pub const QUEUE: StartupPurpose<BlockQueueObject> = StartupPurpose::new(0x8007_0003);
 pub const OWNER: StartupPurpose<ByteChannelObject> = StartupPurpose::new(0x8007_0005);
 
