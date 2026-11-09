@@ -3,7 +3,7 @@
 
 //! Userspace foreground membership. Records hold observation and request
 //! capabilities only; the immediate parent retains the Process supervisor.
-//! Membership is cooperative and is not a kernel TaskGroup security boundary.
+//! Membership is cooperative and is not a kernel `TaskGroup` security boundary.
 
 use core::mem::MaybeUninit;
 use hyper_os::capability_channel::{
@@ -227,7 +227,7 @@ impl Requests {
         for _ in 0..64 {
             let mut bytes = [0; 8];
             match self.channel.as_byte_channel().try_receive(&mut bytes) {
-                Ok(8) if &bytes == TERMINATE => pending = true,
+                Ok(8) if bytes == TERMINATE => pending = true,
                 Ok(_) => {}
                 Err(Error::MessageTooLarge { bytes, handles: 0 }) => {
                     // Malformed messages cannot poison a shared request queue.
